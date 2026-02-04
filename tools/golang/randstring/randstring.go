@@ -38,12 +38,12 @@ func generateAlphanumeric(length int) (string, error) {
 	// We lose ~3/64 chars when filtering out +/=
 	// Oversampling by 1.5x should give us enough in most cases
 	bufferSize := (length * 3 / 4) + (length / 2)
-	
+
 	// Ensure minimum buffer size to guarantee progress
 	if bufferSize < 8 {
 		bufferSize = 8
 	}
-	
+
 	var result strings.Builder
 	result.Grow(length)
 
