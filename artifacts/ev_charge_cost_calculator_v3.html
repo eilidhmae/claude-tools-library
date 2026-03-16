@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EV Charge Cost Calculator</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --color-bg: #ffffff;
+    --color-bg-secondary: #f5f4f0;
+    --color-text-primary: #1a1a18;
+    --color-text-secondary: #5f5e5a;
+    --color-border: rgba(0,0,0,0.15);
+    --color-border-secondary: rgba(0,0,0,0.25);
+    --color-accent: #1D9E75;
+    --color-accent-bg: #E1F5EE;
+    --color-accent-text: #085041;
+    --color-warn: #B04000;
+    --color-warn-border: #E57A2A;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --font: system-ui, -apple-system, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --color-bg: #1a1a18;
+      --color-bg-secondary: #2c2c2a;
+      --color-text-primary: #f1efe8;
+      --color-text-secondary: #b4b2a9;
+      --color-border: rgba(255,255,255,0.15);
+      --color-border-secondary: rgba(255,255,255,0.25);
+    }
+  }
+  body {
+    font-family: var(--font);
+    background: var(--color-bg);
+    color: var(--color-text-primary);
+    padding: 2rem 1.5rem;
+    max-width: 700px;
+    margin: 0 auto;
+    line-height: 1.6;
+  }
+  h1 { font-size: 18px; font-weight: 500; margin-bottom: 0.25rem; }
+  .subtitle { font-size: 13px; color: var(--color-text-secondary); margin-bottom: 2rem; }
+  .section-label {
+    font-size: 11px; color: var(--color-text-secondary);
+    text-transform: uppercase; letter-spacing: 0.06em;
+    margin: 1.5rem 0 0.75rem;
+  }
+  .slider-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .slider-row label { font-size: 14px; color: var(--color-text-secondary); min-width: 150px; }
+  .slider-row input[type=range] {
+    flex: 1; height: 4px; accent-color: var(--color-accent);
+    cursor: pointer;
+  }
+  .slider-val { font-size: 14px; font-weight: 500; min-width: 68px; text-align: right; }
+  .slider-val.highlight {
+    color: var(--color-accent-text);
+    background: var(--color-accent-bg);
+    border-radius: 4px;
+    padding: 1px 6px;
+  }
+  .car-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 1rem; }
+  .car-btn {
+    font-size: 13px; padding: 6px 12px;
+    border-radius: var(--radius-md);
+    border: 0.5px solid var(--color-border-secondary);
+    background: transparent; color: var(--color-text-secondary);
+    cursor: pointer; font-family: var(--font);
+    transition: background 0.15s, color 0.15s;
+  }
+  .car-btn:hover { background: var(--color-bg-secondary); }
+  .car-btn.active {
+    border-color: var(--color-accent);
+    background: var(--color-accent-bg);
+    color: var(--color-accent-text);
+  }
+  .note {
+    font-size: 12px; color: var(--color-text-secondary);
+    padding: 6px 10px; background: var(--color-bg-secondary);
+    border-radius: var(--radius-md); margin-top: 6px;
+  }
+  .divider { border: none; border-top: 0.5px solid var(--color-border); margin: 1.25rem 0; }
+  .metrics {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 10px; margin: 1.25rem 0;
+  }
+  .metric {
+    background: var(--color-bg-secondary); border-radius: var(--radius-md);
+    padding: 0.85rem 1rem;
+  }
+  .metric-label { font-size: 12px; color: var(--color-text-secondary); margin-bottom: 4px; }
+  .metric-value { font-size: 20px; font-weight: 500; }
+  .metric-value.warn { color: var(--color-warn); }
+  .breakdown {
+    border: 0.5px solid var(--color-border); border-radius: var(--radius-lg);
+    overflow: hidden; margin-top: 1rem;
+  }
+  .brow {
+    display: flex; justify-content: space-between;
+    padding: 10px 14px; font-size: 14px;
+    border-bottom: 0.5px solid var(--color-border);
+  }
+  .brow:last-child { border-bottom: none; }
+  .brow.total { font-weight: 500; background: var(--color-bg-secondary); font-size: 15px; }
+  .brow.idle-warn { color: var(--color-warn); }
+  .brow.muted { color: var(--color-text-secondary); }
+  .idle-notice {
+    font-size: 12px; color: var(--color-text-secondary);
+    margin-top: 8px; padding: 8px 12px;
+    border-left: 3px solid var(--color-warn-border);
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+    background: var(--color-bg-secondary);
+  }
+  .rate-info {
+    font-size: 12px; color: var(--color-text-secondary);
+    margin-top: 1.5rem; padding-top: 1rem;
+    border-top: 0.5px solid var(--color-border);
+  }
+  .rate-divider {
+    border: none;
+    border-top: 0.5px dashed var(--color-border);
+    margin: 0.5rem 0 1rem;
+  }
+</style>
+</head>
+<body>
+
+<h1>EV Charge Cost Calculator</h1>
+<p class="subtitle" id="subtitle">$0.3609 CAD/kWh + tax · Idle $0.40/min · 5-min grace · CCS1 180 kW station</p>
+
+<div class="section-label">Vehicle preset</div>
+<div class="car-btns">
+  <button class="car-btn" onclick="setPreset(180,77,'',this)">IONIQ 5 AWD</button>
+  <button class="car-btn active" onclick="setPreset(150,74.7,'Needs CCS1→NACS adapter at this station.',this)">2026 Solterra</button>
+  <button class="car-btn" onclick="setPreset(150,74.7,'',this)">2026 Toyota bZ</button>
+  <button class="car-btn" onclick="setPreset(50,40,'',this)">Generic 50 kW</button>
+</div>
+<div id="preset-note" class="note">Needs CCS1→NACS adapter at this station.</div>
+
+<div class="section-label">Station &amp; pricing</div>
+
+<div class="slider-row">
+  <label>Energy rate (¢/kWh)</label>
+  <input type="range" id="rate" min="20" max="65" step="0.5" value="36.09" oninput="update()">
+  <span class="slider-val highlight" id="rate-out">$0.3609</span>
+</div>
+
+<hr class="rate-divider">
+
+<div class="section-label">Session parameters</div>
+
+<div class="slider-row">
+  <label>Energy added (kWh)</label>
+  <input type="range" id="kwh" min="5" max="100" step="1" value="55" oninput="update()">
+  <span class="slider-val" id="kwh-out">55 kWh</span>
+</div>
+<div class="slider-row">
+  <label>Charge rate (kW)</label>
+  <input type="range" id="kw" min="10" max="180" step="5" value="150" oninput="update()">
+  <span class="slider-val" id="kw-out">150 kW</span>
+</div>
+<div class="slider-row">
+  <label>Idle after charge (min)</label>
+  <input type="range" id="idle" min="0" max="60" step="1" value="0" oninput="update()">
+  <span class="slider-val" id="idle-out">0 min</span>
+</div>
+<div class="slider-row">
+  <label>Tax rate (%)</label>
+  <input type="range" id="tax" min="0" max="15" step="1" value="5" oninput="update()">
+  <span class="slider-val" id="tax-out">5%</span>
+</div>
+
+<hr class="divider">
+
+<div class="metrics" id="metrics"></div>
+<div class="breakdown" id="breakdown"></div>
+<div id="idle-notice"></div>
+
+<div class="rate-info" id="rate-info">
+  Station: CCS1 · 180 kW max · $0.3609/kWh · Idle $0.40/min after 5-min grace period
+</div>
+
+<script>
+const IDLE_RATE = 0.40;
+const GRACE = 5;
+
+function fmt(n) { return '$' + n.toFixed(2); }
+function fmtRate(n) { return '$' + n.toFixed(4); }
+
+function update() {
+  const kwh      = parseFloat(document.getElementById('kwh').value);
+  const kw       = parseFloat(document.getElementById('kw').value);
+  const idleTotal= parseFloat(document.getElementById('idle').value);
+  const taxPct   = parseFloat(document.getElementById('tax').value);
+  // Rate slider is in cents (e.g. 36.09 ¢) → convert to dollars
+  const rateCents = parseFloat(document.getElementById('rate').value);
+  const ENERGY_RATE = rateCents / 100;
+
+  // Display labels
+  document.getElementById('kwh-out').textContent  = kwh + ' kWh';
+  document.getElementById('kw-out').textContent   = kw + ' kW';
+  document.getElementById('idle-out').textContent = idleTotal + ' min';
+  document.getElementById('tax-out').textContent  = taxPct + '%';
+  document.getElementById('rate-out').textContent = fmtRate(ENERGY_RATE);
+
+  // Update subtitle and footer dynamically
+  document.getElementById('subtitle').textContent =
+    fmtRate(ENERGY_RATE) + ' CAD/kWh + tax · Idle $0.40/min · 5-min grace · CCS1 180 kW station';
+  document.getElementById('rate-info').textContent =
+    'Station: CCS1 · 180 kW max · ' + fmtRate(ENERGY_RATE) + '/kWh · Idle $0.40/min after 5-min grace period';
+
+  // Calculations
+  const chargeMins   = (kwh / kw) * 60;
+  const billableIdle = Math.max(0, idleTotal - GRACE);
+  const energyCost   = kwh * ENERGY_RATE;
+  const idleCost     = billableIdle * IDLE_RATE;
+  const subtotal     = energyCost + idleCost;
+  const taxAmt       = subtotal * (taxPct / 100);
+  const total        = subtotal + taxAmt;
+  const effRate      = total / kwh;
+  const totalMins    = chargeMins + idleTotal;
+
+  // Metrics
+  document.getElementById('metrics').innerHTML =
+    '<div class="metric"><div class="metric-label">Total cost</div><div class="metric-value">' + fmt(total) + '</div></div>' +
+    '<div class="metric"><div class="metric-label">Charge time</div><div class="metric-value">' + chargeMins.toFixed(1) + ' min</div></div>' +
+    '<div class="metric"><div class="metric-label">Effective $/kWh</div><div class="metric-value' + (effRate > 0.50 ? ' warn' : '') + '">' + fmtRate(effRate) + '</div></div>' +
+    '<div class="metric"><div class="metric-label">Total session</div><div class="metric-value">' + totalMins.toFixed(0) + ' min</div></div>';
+
+  // Breakdown rows — rate label is dynamic
+  const idleRow = idleCost > 0
+    ? '<div class="brow idle-warn"><span>Idle fee (' + billableIdle.toFixed(0) + ' min × $0.40)</span><span>' + fmt(idleCost) + '</span></div>'
+    : '<div class="brow muted"><span>Idle fee (within grace period)</span><span>$0.00</span></div>';
+
+  document.getElementById('breakdown').innerHTML =
+    '<div class="brow"><span>Energy (' + kwh + ' kWh × ' + fmtRate(ENERGY_RATE) + ')</span><span>' + fmt(energyCost) + '</span></div>' +
+    idleRow +
+    '<div class="brow"><span>Subtotal</span><span>' + fmt(subtotal) + '</span></div>' +
+    '<div class="brow"><span>Tax (' + taxPct + '%)</span><span>' + fmt(taxAmt) + '</span></div>' +
+    '<div class="brow total"><span>Total</span><span>' + fmt(total) + '</span></div>';
+
+  // Idle warning notice
+  const notice = document.getElementById('idle-notice');
+  if (idleCost > energyCost * 0.3) {
+    notice.innerHTML = '<div class="idle-notice">Idle fees are ' + Math.round(idleCost/subtotal*100) + '% of your bill. Unplug within ' + GRACE + ' min of charge completion to avoid this penalty.</div>';
+  } else if (idleTotal > 0 && idleTotal <= GRACE) {
+    notice.innerHTML = '<div class="idle-notice">Still within the ' + GRACE + '-min grace period — no idle charge yet.</div>';
+  } else {
+    notice.innerHTML = '';
+  }
+}
+
+function setPreset(maxKW, kwh, note, btn) {
+  document.querySelectorAll('.car-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('kw').value  = Math.min(maxKW, 180);
+  document.getElementById('kwh').value = kwh;
+  const noteEl = document.getElementById('preset-note');
+  if (note) { noteEl.textContent = note; noteEl.style.display = 'block'; }
+  else { noteEl.style.display = 'none'; }
+  update();
+}
+
+update();
+</script>
+</body>
+</html>
