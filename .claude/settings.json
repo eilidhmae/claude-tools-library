@@ -2,5 +2,18 @@
   "statusLine": {
     "type": "command",
     "command": "bash .claude/statusline-command.sh"
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash tools/bash/adversary-check.sh . 2>/dev/null || bash ~/.claude/hooks/adversary-check.sh . 2>/dev/null || true"
+          }
+        ]
+      }
+    ]
   }
 }
