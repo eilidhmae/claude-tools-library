@@ -1,0 +1,37 @@
+{
+  "extends": "claude-code",
+  "meta": {
+    "name": "claude-code-terraform",
+    "description": "Claude Code profile for Terraform and Go development with IaC tooling support"
+  },
+  "filesystem": {
+    "allow": [
+      "$HOME/go"
+    ],
+    "read_file": [
+      "$HOME/.terraformrc"
+    ],
+    "allow_file": [
+      "$HOME/.terraform.d/checkpoint_cache",
+      "$HOME/.terraform.d/checkpoint_signature"
+    ]
+  },
+  "policy": {
+    "add_allow_readwrite": [
+      "$TMPDIR",
+      "$HOME/.terraform.d/plugin-cache",
+      "$HOME/.terraform.d/plugins"
+    ],
+    "override_deny": [
+      "$HOME/.terraform.d/plugin-cache",
+      "$HOME/.terraform.d/plugins",
+      "$HOME/.terraform.d/checkpoint_cache",
+      "$HOME/.terraform.d/checkpoint_signature"
+    ]
+  },
+  "rollback": {
+    "exclude_patterns": [
+      ".terraform"
+    ]
+  }
+}
