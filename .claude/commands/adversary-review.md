@@ -79,3 +79,7 @@ Describe at least one simpler alternative to your approach. Be honest about the 
 After running this checklist, report your findings honestly. If you found issues, say so. Do not bury findings in qualifiers or optimistic language.
 
 End with: **PASS**, **CONCERNS**, or **FAIL** and specific file:line references for any issues.
+
+## Escalation
+
+Self-review is biased -- you are grading your own work. If your verdict is **PASS** on a non-trivial change, consider invoking the `adversary` subagent (`Agent` tool, `subagent_type: adversary`) for an independent second opinion before declaring the task done. The subagent runs in its own context and will spawn a peer for quorum if it disagrees with your completion claim.

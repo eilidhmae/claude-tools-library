@@ -52,7 +52,7 @@ Checks: large file additions, missing test files, new TODOs/FIXMEs, commented-ou
 
 ### [adversary](.claude/agents/adversary.md)
 
-Adversarial code reviewer that independently verifies claims, challenges complexity, and provides a skeptical second opinion. Runs as a read-only subagent with its own context window.
+Adversarial code reviewer that independently verifies claims, challenges complexity, and provides a skeptical second opinion. Runs as a read-only subagent with its own context window. On a CONCERNS/FAIL verdict it spawns a peer adversary for quorum (up to three reviewers total, majority wins).
 
 **Invocation paths:**
 

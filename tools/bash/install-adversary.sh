@@ -39,16 +39,24 @@ mkdir -p "$CLAUDE_DIR/agents"
 mkdir -p "$CLAUDE_DIR/commands"
 mkdir -p "$CLAUDE_DIR/hooks"
 
-# --- Copy files ---
-cp "$AGENT_SRC" "$CLAUDE_DIR/agents/adversary.md"
-echo "Installed: ~/.claude/agents/adversary.md"
+# --- Copy files (overwrites any existing install) ---
+install_file() {
+    local src="$1"
+    local dest="$2"
+    local label
+    if [ -e "$dest" ]; then
+        label="Updated"
+    else
+        label="Installed"
+    fi
+    cp -f "$src" "$dest"
+    echo "$label: $dest"
+}
 
-cp "$COMMAND_SRC" "$CLAUDE_DIR/commands/adversary-review.md"
-echo "Installed: ~/.claude/commands/adversary-review.md"
-
-cp "$SCRIPT_SRC" "$CLAUDE_DIR/hooks/adversary-check.sh"
+install_file "$AGENT_SRC"   "$CLAUDE_DIR/agents/adversary.md"
+install_file "$COMMAND_SRC" "$CLAUDE_DIR/commands/adversary-review.md"
+install_file "$SCRIPT_SRC"  "$CLAUDE_DIR/hooks/adversary-check.sh"
 chmod +x "$CLAUDE_DIR/hooks/adversary-check.sh"
-echo "Installed: ~/.claude/hooks/adversary-check.sh"
 
 echo ""
 echo "Done. Three components installed globally."

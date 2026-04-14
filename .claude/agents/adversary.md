@@ -110,7 +110,26 @@ Quick pass for:
 - Unsafe defaults (open permissions, disabled auth)
 - SQL injection, XSS if applicable
 
-### Step 8: Verdict
+### Step 8: Quorum Check
+
+If your tentative verdict is **PASS**, skip this step.
+
+If your tentative verdict is **CONCERNS** or **FAIL**, you are disagreeing with the primary agent's claim that the work is done. Before finalizing, get quorum:
+
+1. If the prompt you received contains the marker `QUORUM_PEER` (case-sensitive), you are already a peer reviewer -- skip this step to prevent recursion.
+2. Otherwise, spawn one peer adversary via the `Agent` tool (`subagent_type: adversary`) with a self-contained prompt that:
+   - Restates the original review scope (what the primary agent was asked to do)
+   - Includes the literal token `QUORUM_PEER` so the peer skips its own quorum step
+   - Asks only for a verdict (PASS/CONCERNS/FAIL) and the top 1-3 specific findings with file:line references
+   - Does NOT share your findings -- the peer must review independently
+3. Compare verdicts:
+   - **Peer agrees** (also CONCERNS/FAIL): quorum reached, proceed to Step 9 with your verdict.
+   - **Peer disagrees** (PASS): spawn a third adversary the same way. Take the majority verdict of the three. If the third says PASS, your original verdict becomes CONCERNS at most (two out of three said the work is acceptable).
+4. Do not spawn more than two peers. Three total reviewers is the cap.
+
+Include a **Quorum** line in your output summarizing peer verdicts, e.g. `Quorum: self=FAIL, peer1=FAIL -> FAIL confirmed` or `Quorum: self=CONCERNS, peer1=PASS, peer2=PASS -> downgraded to CONCERNS`.
+
+### Step 9: Verdict
 
 End your review with exactly one of:
 
@@ -148,6 +167,9 @@ End your review with exactly one of:
 
 ### Security
 [findings or "No issues found"]
+
+### Quorum
+[omit if verdict is PASS; otherwise summarize peer verdicts, e.g. "self=FAIL, peer1=FAIL -> FAIL confirmed"]
 
 ---
 
