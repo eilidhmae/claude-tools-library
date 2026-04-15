@@ -62,7 +62,15 @@ STAT_OUTPUT=$($DIFF_STAT_CMD 2>/dev/null || echo "(no changes)")
 echo "$STAT_OUTPUT"
 echo ""
 
-CHANGED_FILES=$(git diff --name-only ${COMMIT_RANGE:-HEAD} 2>/dev/null || true)
+if [ -n "$COMMIT_RANGE" ]; then
+    CHANGED_FILES=$(git diff --name-only "$COMMIT_RANGE" 2>/dev/null || true)
+else
+    CHANGED_FILES=$(
+        { git diff --name-only HEAD 2>/dev/null
+          git ls-files --others --exclude-standard 2>/dev/null
+        } | sort -u
+    )
+fi
 if [ -z "$CHANGED_FILES" ]; then
     echo "No changes detected."
     exit 0
@@ -151,18 +159,39 @@ else
 fi
 echo ""
 
+# --- Merge conflict markers ---
+echo "--- MERGE CONFLICT MARKERS ---"
+MARKERS=$($DIFF_CMD 2>/dev/null | grep -E '^\+(<{7}|={7}|>{7})' | head -20 || true)
+if [ -n "$MARKERS" ]; then
+    echo "$MARKERS" | while IFS= read -r line; do
+        echo "  $line"
+    done
+else
+    echo "  (none)"
+fi
+echo ""
+
 # --- Test execution ---
 echo "--- TEST RESULTS ---"
 RAN_TESTS=0
 
 # Go tests
 if echo "$CHANGED_FILES" | grep -q '\.go$'; then
-    echo "  Running: go test ./..."
-    if GO_OUTPUT=$(cd "$PROJECT_ROOT" && go test ./... 2>&1); then
-        echo "  PASS: Go tests passed"
+    GO_MODS=$(find "$PROJECT_ROOT" -name go.mod -not -path '*/vendor/*' -not -path '*/node_modules/*' 2>/dev/null)
+    if [ -z "$GO_MODS" ]; then
+        echo "  (no go.mod found; skipping Go tests)"
     else
-        echo "  FAIL: Go tests failed"
-        echo "$GO_OUTPUT" | tail -20 | sed 's/^/    /'
+        while IFS= read -r modfile; do
+            [ -z "$modfile" ] && continue
+            moddir=$(dirname "$modfile")
+            echo "  Running: go test ./... (in $moddir)"
+            if GO_OUTPUT=$(cd "$moddir" && go test ./... 2>&1); then
+                echo "  PASS: Go tests passed ($moddir)"
+            else
+                echo "  FAIL: Go tests failed ($moddir)"
+                echo "$GO_OUTPUT" | tail -20 | sed 's/^/    /'
+            fi
+        done <<< "$GO_MODS"
     fi
     RAN_TESTS=1
 fi
