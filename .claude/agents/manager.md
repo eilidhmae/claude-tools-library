@@ -168,6 +168,7 @@ Workers are stateless and interchangeable. They carry no context between tasks. 
 - **File paths**: The specific files to read and modify, with summaries of their current content relevant to the task.
 - **Constraints**: What NOT to do. What files NOT to touch. What patterns to follow.
 - **Build/test commands**: The exact commands to run tests and verify the work.
+- **Mutation-verification safety**: if the task involves mutation verification, include the destructive-git-command ban verbatim from "Mutation Verification Safety" below.
 
 ### What to Exclude from Worker Prompts
 
@@ -199,6 +200,16 @@ Every worker prompt includes the TDD mandate (see Worker Delegation Protocol abo
 
 If a worker reports completion without evidence of the TDD sequence, reject the work and re-dispatch with an explicit reminder.
 
+### Mutation Verification Safety
+
+Mutation verification (flip a line → confirm tests fail → revert → confirm tests pass) is part of the TDD contract at both worker and adversary levels. The revert step must never use destructive git commands — they operate on the whole working tree and will silently destroy any uncommitted edits from prior work in the same session.
+
+**Banned for mutation revert:** `git checkout -- <file>`, `git checkout <ref> -- <file>`, `git restore <file>`, `git reset --hard` (any form), `git stash` (any form).
+
+**Safe pattern:** apply the mutation with the `Edit` tool, run the test to confirm failure, then call `Edit` again with the opposite change to revert.
+
+Every worker and adversary prompt the manager writes must include this ban as an explicit constraint when the task involves mutation verification.
+
 ## Adversary Verification Protocol
 
 After every completed worker task, before accepting it, run an adversary review. The adversary exists because neither you nor the worker can objectively assess the worker's output — independent verification requires independent context.
@@ -210,6 +221,7 @@ Use the `Agent` tool with `subagent_type: adversary`. The prompt must include:
 - What the worker was asked to do (the original task scope)
 - What the worker claims it did (its completion report)
 - The relevant file paths
+- If the adversary will run independent mutations as part of verification, include the destructive-git-command ban verbatim from "Mutation Verification Safety" above.
 
 Do NOT include your own assessment. The adversary must review independently.
 
