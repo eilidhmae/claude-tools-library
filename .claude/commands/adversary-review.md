@@ -13,6 +13,8 @@ Run this checklist against your own recent work. Be honest -- the point is to ca
 
 ### 1. Did the changes actually happen?
 
+Run the Mechanical Baseline from `.claude/agents/_shared.md` (or `~/.claude/agents/_shared.md`). If unavailable, fall back to:
+
 ```bash
 git diff --stat HEAD
 git status
