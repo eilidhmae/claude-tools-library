@@ -87,8 +87,21 @@ Contains: project overview, architecture, key conventions, build/test commands, 
 - Create it on the first standalone session if it does not exist.
 - Update it whenever project structure, conventions, key decisions, or referenced documents change.
 - It must be accurate enough that a fresh agent session starting from `CLAUDE.md` alone can understand the project without any other context.
+- Treat it as a **budget-bound entrypoint**, not a knowledge base. See §CLAUDE.md size and content rules below before adding content.
 
 In orchestrated mode, proposed updates go to `.claude/drafts/<LINEAGE_ID>/CLAUDE-patch.md` as free-form prose describing the change.
+
+#### CLAUDE.md size and content rules
+
+`CLAUDE.md` is loaded into **every** session's prime context — it is a budget-constrained entrypoint, not a knowledge base. Before writing to it, apply these rules:
+
+1. **Size budget: hard ceiling ~8 KB / ~120 lines.** Before adding, run `wc -c CLAUDE.md`. If the file is already near the ceiling, you MUST compress or migrate something before adding new content.
+2. **One-line-per-reference rule.** Any row in a status/index table is **one line**. If you catch yourself writing a multi-sentence narrative inside a table cell, the narrative belongs in the referenced file, not here. The table cell is a pointer (`plan-X.md — LANDED YYYY-MM-DD (commit) — one-clause scope`), never a summary. This rule also applies by spirit to any other session-loaded foundation doc (e.g. `phases.md`) — pointers, not essays.
+3. **No duplication rule.** If the information already exists in another tracked file (`phases.md`, a plan file's §Completion Record, `TODO.md`, `CHANGELOG.md`), `CLAUDE.md` links to it — it does not copy it. Completion narratives, mutation-gate lists, C-bug notes, file-delta counts, LOC figures, and commit-specific details ALL belong in the plan file's own §Completion Record, never in `CLAUDE.md`.
+4. **The "turn-1" test.** Ask: "would a *fresh* session need this on its very first turn, before any task is known?" If no, it goes in `phases.md` / `TODO.md` / the plan file — not `CLAUDE.md`. Load-bearing-for-every-session content is: prime directives, foundation-doc pointers, build/run commands, project conventions, TDD workflow. Everything else is on-demand.
+5. **Shrink-before-grow.** If a landing update would push a section past these limits, the same commit that adds the new line MUST compress older rows to one-liners or migrate them out. Never add without shrinking when near budget.
+
+In orchestrated mode, `CLAUDE-patch.md` drafts must themselves honor these rules — an orchestrator reconciling a patch that adds a multi-sentence table cell should reject it and return the draft for compression.
 
 ### CHANGELOG.md — The Audit Trail
 

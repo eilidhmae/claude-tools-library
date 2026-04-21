@@ -94,6 +94,8 @@ Under `.claude/drafts/<LINEAGE_ID>/`:
 
 Reconciliation order: concatenate CHANGELOG entries in timestamp order into canonical `CHANGELOG.md`; apply TODO updates; review and apply `CLAUDE-patch.md` with judgment. If two lineages propose conflicting `CLAUDE.md` changes, dispatch a reconciliation manager rather than merging by hand. Delete the drafts directory after a successful commit.
 
+**Size check before committing `CLAUDE.md` merges.** Before applying any `CLAUDE-patch.md`, run `wc -c CLAUDE.md` and inspect the patch. If the merged result would exceed ~8 KB / ~120 lines, OR if the patch adds a multi-sentence table-cell narrative (see `manager.md` → CLAUDE.md size and content rules), reject the patch: send it back to the manager for compression, or dispatch a reconciliation manager whose goal is to shrink `CLAUDE.md` first. Never commit a `CLAUDE.md` that duplicates content already in a plan file's §Completion Record, `phases.md`, `CHANGELOG.md`, or `TODO.md` — those are the authoritative homes for landing detail.
+
 ### Manager Planning Docs (Lineage-Scoped)
 
 Per-goal plans, decomposition artifacts, research summaries the manager writes while decomposing its goal. Placed per `CLAUDE.md` directions or the consuming repo's conventions — no fixed path mandated.
@@ -195,9 +197,10 @@ Before every commit, in order:
 
 1. **Merge lineage drafts** (from §Aggregation and Reconciliation step 5). Canonical `CLAUDE.md`, `CHANGELOG.md`, `TODO.md` now reflect the session's work. Delete `.claude/drafts/` after merge.
 2. **Enqueue-before-ack check**: confirm every manager's follow-up tasks are in `TODO.md` Active, every completed work unit is in `CHANGELOG.md`, and `CLAUDE.md` reflects any structural changes. This should already be true from the merge; the check is a guard.
-3. **Run mechanical checks**: Mechanical Baseline per `_shared.md`.
-4. **Run the full test suite** — whatever the project uses. Do not commit on a red build.
-5. **Inspect the diff**:
+3. **CLAUDE.md size check**: `wc -c CLAUDE.md` ≤ ~8 KB and no table cell exceeds one line (see `manager.md` → CLAUDE.md size and content rules). If violated, roll back the `CLAUDE.md` portion of the merge and dispatch a shrink manager before committing.
+4. **Run mechanical checks**: Mechanical Baseline per `_shared.md`.
+5. **Run the full test suite** — whatever the project uses. Do not commit on a red build.
+6. **Inspect the diff**:
    ```bash
    git status
    git diff --stat HEAD
