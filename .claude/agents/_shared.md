@@ -58,7 +58,7 @@ When no `LINEAGE_ID` is present (standalone manager, no orchestrator in the sess
 
 File shapes for deterministic merge:
 
-- `CHANGELOG-entries.md` — each entry preceded by `## <ISO-8601 completion timestamp>` for ordering. The **completion timestamp** is wall-clock time (`date -u +%Y-%m-%dT%H:%M:%SZ`) captured at the moment the manager appends the entry to this draft file, after the work unit's adversary quorum has passed. Not the worker's finish time, not the adversary's verdict time — the draft-write time. This makes merge order deterministic regardless of which parallel manager completes first.
+- `CHANGELOG-entries.md` — each entry preceded by `## <ISO-8601 completion timestamp>` for ordering. The **completion timestamp** is wall-clock time (`date -u +%Y-%m-%dT%H:%M:%SZ`) captured at the moment the manager appends the entry to this draft file, after the work unit's adversary review has returned PASS. Not the worker's finish time, not the adversary's verdict time — the draft-write time. This makes merge order deterministic regardless of which parallel manager completes first.
 - `TODO-updates.md` — two sections, `### Move to Done` and `### Add to Active`, one bullet per item.
 - `CLAUDE-patch.md` — free-form prose describing the proposed change; the orchestrator applies with judgment or dispatches a reconciliation manager if lineages conflict.
 
@@ -68,12 +68,80 @@ When briefing a worker, adversary, or manager, cite file paths, line numbers, an
 
 Rationale (Grail §8): inline state grows with task count and burns context proportionally. A path reference is O(1) in prompt size regardless of project size. The callee reads what it needs.
 
+## Claim Manifest
+
+When a worker (or manager, in a completion report) reports done, it emits a **Claim Manifest** — a structured list of what it asserts is true, paired with where the reader can re-check. The adversary reads this manifest and falsifies entries one at a time. No manifest, no review: the adversary returns FAIL with "no claim manifest provided" and the work bounces back.
+
+A manifest has two entry types.
+
+### Claims (about behavior)
+
+A claim is something a test, log, or runtime check could disprove. Each entry has:
+
+- **ID** — `C1`, `C2`, ... unique within the manifest.
+- **Statement** — the asserted behavior, in concrete terms. "API rejects expired tokens" not "auth works."
+- **Evidence** — exactly one of:
+  - A test reference: `tests/auth_test.go:42 — TestRejectExpiredToken` plus the command to run it (`go test ./auth -run TestRejectExpiredToken`).
+  - A code reference where the behavior is unambiguously visible: `auth/middleware.go:88-104 — early return on expired token`.
+  - A captured command output: command + first/last lines of expected output, kept short.
+
+Evidence must be re-checkable from the cited pointer alone. If a reader has to re-derive the claim from the diff, that is `unsupported`.
+
+### Decisions (about design)
+
+A decision is a deliberate design choice the author wants on record. Each entry has:
+
+- **ID** — `D1`, `D2`, ...
+- **Statement** — the choice. "Chose channel over mutex for the work queue."
+- **Alternatives considered** — at least one rejected option.
+- **Rationale** — concrete reason, not "it seemed cleaner." A specific failure mode of the alternative, a property of the chosen approach the alternative lacks, etc.
+- **Where recorded** — plan doc reference, code comment file:line, or completion report section. The adversary checks the record exists and matches.
+
+Decisions are not judged for correctness during review — that is the manager's call. They are judged for whether the choice was deliberate and recorded.
+
+### Manifest Format
+
+Workers attach the manifest to their completion report. Managers forward it verbatim to the adversary. Format:
+
+```
+## Claim Manifest
+
+### Claims
+- C1: <statement>
+  Evidence: <pointer> — <how to re-check>
+- C2: <statement>
+  Evidence: <pointer> — <how to re-check>
+
+### Decisions
+- D1: <statement>
+  Alternatives: <list>
+  Rationale: <reason>
+  Recorded: <pointer>
+```
+
+Manifests should be tight: one claim per behavior the work is responsible for, one decision per non-obvious design choice. A bug fix may have a single C1; a new feature may have several. A refactor with no behavior change should have a D1 ("no behavior change") with the diff itself as evidence.
+
+## Disagreement Protocol
+
+The adversary returns one report. There is no peer quorum, no voting, no third reviewer.
+
+When the adversary returns FAIL and the worker (or manager) believes the verdict is wrong:
+
+1. **Manager reads the contested item directly.** The manager has full lineage context — more than any single adversary or worker. For each contested claim or independent finding, the manager opens the cited file, runs the cited test, or inspects the cited output.
+2. **Manager decides:**
+   - Adversary is right: dispatch a worker to address the finding. Re-run the adversary on the fix.
+   - Worker is right (adversary misread): record the manager's reasoning in the work unit's record and accept the work. The adversary's report stays in the trail.
+   - Genuinely unclear: escalate to human with the specific contested item and what evidence would resolve it. Do not dispatch a second adversary hoping for a different answer.
+3. **No re-roll.** Spawning a second adversary to "see if it agrees" is forbidden. If the first adversary is unreliable enough that re-rolls are tempting, the answer is to fix the adversary spec, not to average over noise.
+
+The exception: if the manager has reason to believe the adversary did not have access to a critical input (e.g., the manifest was malformed, a referenced file was misnamed in the dispatch prompt), the manager may re-dispatch a *fresh* adversary with the corrected input. This is a retry under new conditions, not a re-roll.
+
 ## Known Limitations and Resource Ceilings
 
 These are operational bounds this system does not structurally enforce. Agents and humans should be aware.
 
 - **Re-dispatch cap (orchestrator).** For any single goal, the orchestrator re-dispatches the same manager at most 2 times (initial + 2 retries = 3 attempts total). Hitting the cap triggers escalation to human.
-- **Adversary cap (manager).** Manager-spawned adversaries for a single work unit are capped at 3. The adversary's own internal peer quorum is independent and capped at 3 total reviewers (self + 2 peers).
+- **Adversary count (manager).** Exactly one adversary per work unit per attempt. If the adversary returns FAIL, the manager dispatches a worker to fix the finding, then re-runs the adversary on the fix. The same adversary may run multiple times across attempts; what is forbidden is parallel adversaries reviewing the same artifact for consensus. See Disagreement Protocol.
 - **Worker fanout (manager).** At most 6 parallel workers per dispatch wave. If decomposition requires more, serialize waves.
 - **Back-pressure.** No token-budget enforcement beyond the caps above. Runaway loops are bounded by the caps but can still be costly; human review catches what the caps miss.
 - **Observability.** No persistent event log across sessions beyond `CHANGELOG.md` and git history. Mid-session reasoning is lost at session end.

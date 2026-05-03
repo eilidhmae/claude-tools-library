@@ -58,11 +58,11 @@ Top-level coordinator. Reconciles lineage-scoped drafts produced by parallel man
 
 ### [manager](.claude/agents/manager.md)
 
-Per-lineage coordinator. Decomposes a goal into worker-sized tasks, dispatches workers with TDD, runs adversary quorum to verify completion, and evaluates block claims through adversaries (block-claim evaluation scope) rather than re-dispatching workers. Runs in two modes detected by `LINEAGE_ID` in its dispatch prompt — standalone (writes canonical project docs and commits) or orchestrated (writes lineage-scoped drafts for the orchestrator to merge).
+Per-lineage coordinator. Decomposes a goal into worker-sized tasks, dispatches workers with TDD, runs a single adversary against each worker's Claim Manifest to verify completion, and evaluates block claims through adversaries (block-claim evaluation scope) rather than re-dispatching workers. Runs in two modes detected by `LINEAGE_ID` in its dispatch prompt — standalone (writes canonical project docs and commits) or orchestrated (writes lineage-scoped drafts for the orchestrator to merge).
 
 ### [adversary](.claude/agents/adversary.md)
 
-Adversarial code reviewer and block-claim evaluator. Read-only subagent with its own context window. On a CONCERNS/FAIL verdict it spawns a peer adversary for quorum (up to three reviewers total, majority wins). Supports two review scopes: code-change review (full protocol) and block-claim evaluation (focused on whether a worker's reported prerequisite is real).
+Claim falsifier. Read-only subagent with its own context window. The author of the work submits a **Claim Manifest** — claims about behavior paired with re-checkable evidence pointers, plus decisions paired with recorded rationale. The adversary attempts to falsify each entry by re-running the cited test, re-reading the cited file, or re-checking the cited output. Per-entry verdict is `verified | unsupported | contradicted`; overall verdict is `PASS | FAIL`. The adversary also runs an independent scan for issues the author did not claim (complexity, scope creep, security, hidden assumptions). There is no peer quorum — disagreements are resolved by the manager reading the contested item directly with full lineage context (see `_shared.md` → Disagreement Protocol). Supports two review scopes: code-change review (full protocol) and block-claim evaluation (single-claim manifest for "blocked by X" reports).
 
 **Invocation paths:**
 

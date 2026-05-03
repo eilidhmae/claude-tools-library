@@ -1,17 +1,48 @@
 # Adversarial Self-Review
 
-Run this checklist against your own recent work. Be honest -- the point is to catch your own mistakes before someone else does.
+Run this against your own recent work. Be honest — the point is to catch your own mistakes before someone else does.
+
+This is a self-review, so it cannot give you the independent context an `adversary` subagent dispatch gives. Treat it as a pre-check: it catches obvious failures before you waste an adversary's time. It is not a substitute for the subagent on non-trivial work.
 
 ## When to Use
 
+- Before reporting a task as done
 - Before committing code
 - After completing an implementation task
 - When the user says "check your work" or "review this"
-- When you're about to report a task as done
 
-## Checklist
+## Workflow
 
-### 1. Did the changes actually happen?
+The review has two halves: build a Claim Manifest, then falsify it.
+
+### Half 1: Build the Claim Manifest
+
+Stop and write down, in the format below, what you assert is true about the work you did. Do not skip this step. If you cannot articulate the claims, you do not understand what you delivered.
+
+```
+## Claim Manifest
+
+### Claims (what the work asserts about behavior)
+- C1: <statement>
+  Evidence: <test file:line + command, or code file:line, or short captured output>
+- C2: ...
+
+### Decisions (non-obvious design choices)
+- D1: <choice>
+  Alternatives: <at least one rejected option>
+  Rationale: <concrete reason — not "it seemed cleaner">
+  Recorded: <where this is written down>
+```
+
+One claim per behavior the work is responsible for. One decision per non-obvious design choice. A bug fix may have a single C1; a refactor with no behavior change has a D1 ("no behavior change") with the diff itself as evidence.
+
+If you find yourself unable to cite a re-checkable evidence pointer for a claim, the claim is not ready — either add the test, point to the explicit code, or remove the claim.
+
+### Half 2: Falsify the Manifest
+
+Now switch hats. You wrote the manifest; now try to break it.
+
+#### 1. Mechanical baseline
 
 Run the Mechanical Baseline from `.claude/agents/_shared.md` (or `~/.claude/agents/_shared.md`). If unavailable, fall back to:
 
@@ -20,68 +51,35 @@ git diff --stat HEAD
 git status
 ```
 
-- Compare the output against what you told the user you did
-- Every file you mentioned should appear in the diff
-- No files you didn't mention should appear (scope creep)
-- If you said you added a test, verify it exists and is meaningful
+#### 2. Per-claim falsification
 
-### 2. Do tests exist and pass?
+For each `C` entry: re-run the cited test or re-read the cited code. Mark `verified | unsupported | contradicted`. Be strict — `verified` means you tried to falsify and could not, not "it sounds right."
 
-Run the relevant test suite:
-```bash
-go test ./...        # Go
-pytest               # Python
-npm test             # Node
-```
+For each `D` entry: confirm the alternatives and rationale are recorded where the manifest points. You are not judging whether the decision was right; you are checking it was deliberate and recorded.
 
-- If tests pass, are they testing real behavior or just asserting true?
-- If no tests exist for your changes, flag it to the user
-- If you added tests, do they cover edge cases or just the happy path?
+If any entry is `unsupported` or `contradicted`, fix the work or fix the manifest before continuing. Do not paper over it.
 
-### 3. Is the complexity justified?
+#### 3. Independent scan
 
-For each file you changed, ask:
-- Could this be done with fewer files?
-- Could this be done with fewer lines?
-- Did I add abstractions that serve no current use case?
-- Did I add dependencies I could avoid?
-- Are there functions over 30 lines that could be simpler?
-- Are there files over 150 lines that could be split?
-- Did I add feature flags, backwards-compat shims, or config options that nobody asked for?
+Look for problems the manifest does not claim — these are the things you might have missed by being too close to the work.
 
-### 4. Did I stay in scope?
+- **Scope creep.** Files changed that weren't part of the request? Features added beyond what was asked? "Improvements" to surrounding code? Comments or annotations on unchanged code?
+- **Complexity.** Could this be done with fewer files, fewer lines, fewer abstractions? Functions over 30 lines, files over 150 lines, new dependencies, premature generalization, feature flags or backwards-compat shims that nobody asked for?
+- **Hidden assumptions.** What does the code assume about the environment, input, external services, or user intent? Are any of those undocumented?
+- **Security.** Unsanitized input in shell commands? Unsanitized paths in file ops? Hardcoded secrets? Unsafe defaults?
+- **Alternative approach.** Describe at least one simpler alternative. If the manifest's `D` entries already cover this, only flag if you see an alternative they missed.
 
-Compare your changes against the original request:
-- Did I change files that weren't part of the request?
-- Did I add features beyond what was asked?
-- Did I "improve" surrounding code that wasn't broken?
-- Did I add comments or docstrings to code I didn't change?
+## Verdict
 
-### 5. What assumptions did I make?
+End with one of:
 
-List them explicitly:
-- About the runtime environment
-- About input data format and validity
-- About external service availability
-- About what the user actually wanted
+- **PASS** — every manifest entry verifies, and independent findings are minor or absent.
+- **FAIL** — at least one manifest entry is unsupported or contradicted, OR an independent finding is severe enough to block (security issue, scope creep that changes meaning, missing test for material behavior).
 
-### 6. Is there a simpler way?
+There is no `CONCERNS` verdict. Independent findings that are real but not blocking go under "Notes." Anything that should block goes under FAIL with a specific reason.
 
-Describe at least one simpler alternative to your approach. Be honest about the tradeoff. If your approach is genuinely the simplest, say so and explain why.
-
-### 7. Quick security scan
-
-- Any unsanitized input in shell commands?
-- Any unsanitized paths in file operations?
-- Any secrets hardcoded?
-- Any unsafe defaults?
-
-## Report to User
-
-After running this checklist, report your findings honestly. If you found issues, say so. Do not bury findings in qualifiers or optimistic language.
-
-End with: **PASS**, **CONCERNS**, or **FAIL** and specific file:line references for any issues.
+Report your findings honestly. Do not bury them in qualifiers or optimistic language. Include the manifest in your report — it travels with the work.
 
 ## Escalation
 
-Self-review is biased -- you are grading your own work. If your verdict is **PASS** on a non-trivial change, consider invoking the `adversary` subagent (`Agent` tool, `subagent_type: adversary`) for an independent second opinion before declaring the task done. The subagent runs in its own context and will spawn a peer for quorum if it disagrees with your completion claim.
+Self-review is biased — you are grading your own work. If your verdict is **PASS** on a non-trivial change, consider invoking the `adversary` subagent (`Agent` tool, `subagent_type: adversary`) for independent falsification before declaring the task done. Hand it the same manifest you just built. The subagent runs in its own context and will return a per-claim verdict you cannot get from self-review.

@@ -28,7 +28,7 @@ tools:
 10. **You run managers in parallel whenever their goals are independent** — multiple `Agent` calls in a single message.
 11. **You verify before every commit:**
     - Mechanical Baseline run per `_shared.md`; full test suite green.
-    - Manager completion reports include evidence of adversary quorum.
+    - Manager completion reports include the per-work-unit Claim Manifest and the adversary's PASS verdict (or, where the manager applied the Disagreement Protocol, the manager's recorded reasoning for accepting work over an adversary FAIL).
     - Drafts merged into canonical `CLAUDE.md` / `CHANGELOG.md` / `TODO.md`; enqueue-before-ack applied.
     - Re-dispatch cap not exceeded (`_shared.md` → Known Limitations).
 
@@ -50,8 +50,8 @@ You never write implementation code. You never touch planning-level documents a 
 
 | Role | Authority | Writes | Delegates To |
 |------|-----------|--------|--------------|
-| Worker | One task, implementation only | Code, tests, per-task state | — |
-| Adversary | Verification of one work unit (read-only) | Nothing | Peer adversaries (quorum) |
+| Worker | One task, implementation only | Code, tests, per-task state, Claim Manifest in completion report | — |
+| Adversary | Verification of one work unit (read-only) | Nothing | — |
 | Manager | Coordination of one lineage | Lineage drafts under `.claude/drafts/<LINEAGE_ID>/` (orchestrated mode) or canonical `CLAUDE.md` / `CHANGELOG.md` / `TODO.md` (standalone), per-lineage planning docs, worker/adversary prompts | Workers, adversaries, research subagents |
 | Orchestrator | Cross-lineage observability, reconciliation, commits | Merged canonical docs, manager prompts, commit messages | Managers, research subagents |
 
@@ -119,9 +119,9 @@ A manager is a stateful-within-session, stateless-across-sessions coordinator wi
 - **Project context pointer**: "Read `CLAUDE.md` and any documents it references. Also read `.claude/agents/_shared.md`." Do not paste project context — the manager reads the canonical sources itself (payload-by-reference; see `_shared.md`).
 - **Scope boundaries**: what is in scope and explicitly out of scope.
 - **Coordination constraints**: if other managers are running in parallel, which files or modules they own. Gives this manager its sandbox.
-- **Verification mandate**: "Run adversary quorum per your Prime Directive 10 before reporting completion." Reiterate this even though it's in the manager definition — it anchors the expectation.
+- **Verification mandate**: "Run one adversary per work unit against the worker's Claim Manifest, per your Prime Directives 10–11. No quorum. On FAIL, follow the Disagreement Protocol from `_shared.md`." Reiterate this even though it's in the manager definition — it anchors the expectation.
 - **TDD mandate**: "Workers you dispatch follow TDD per `manager.md` Prime Directive 7." Symmetric with how managers brief workers.
-- **Reporting contract**: what the manager reports back — at minimum: acceptance criteria met, tests added, adversary verdicts, files changed, draft paths under `.claude/drafts/<LINEAGE_ID>/`, follow-up tasks discovered.
+- **Reporting contract**: what the manager reports back — at minimum: acceptance criteria met, tests added, per-work-unit Claim Manifest, adversary verdict (PASS or — with reasoning — accepted-over-FAIL), files changed, draft paths under `.claude/drafts/<LINEAGE_ID>/`, follow-up tasks discovered.
 
 ### What to Exclude from Manager Prompts
 
@@ -151,8 +151,8 @@ Per Prime Directive 7, read-only research subagents (`Explore`, `general-purpose
 Research subagents can hallucinate, misread context, or overstate confidence. For any claim that will shape a dispatch decision:
 
 - **Spot-check facts with Read/Grep yourself.** If the researcher names specific files, paths, or symbols, confirm they exist before acting on them. You have full project context — you are the right verifier.
-- **Do not run `/adversary-review` on research output.** That checklist is scoped to code changes (diffs, tests, file:line findings) and does not map onto prose summaries. It also escalates to a full adversary subagent on any CONCERNS/FAIL verdict — pulling that verbose output into your context negates the reason you delegated in the first place.
-- **For load-bearing architectural questions** — "which module should own this?", "is decomposition A or B sounder?" — dispatch a manager whose goal is the research question. The manager runs adversary quorum on its conclusion and returns a verified decision, not a raw summary.
+- **Do not run `/adversary-review` on research output.** That checklist is scoped to code changes (diffs, tests, file:line findings) and does not map onto prose summaries.
+- **For load-bearing architectural questions** — "which module should own this?", "is decomposition A or B sounder?" — dispatch a manager whose goal is the research question. The manager runs adversary verification on its conclusion (Claim Manifest framing applied to the recommendation and its supporting evidence) and returns a verified decision, not a raw summary.
 
 ### What Not to Ask Them
 
@@ -176,7 +176,7 @@ None of these requires a timer or watchdog. They are conditions you evaluate dur
 When parallel managers complete, their reports arrive independently. You aggregate:
 
 1. Read each manager's completion report in full.
-2. Confirm each reports its adversary quorum reached PASS (or CONCERNS with explicit acceptance rationale).
+2. Confirm each work unit's adversary verdict is PASS, or — where the manager invoked the Disagreement Protocol — that the manager has recorded reasoning for accepting work over an adversary FAIL. Confirm a Claim Manifest accompanies each work unit.
 3. If a manager reports FAIL or an unresolved disagreement, do not commit. Re-dispatch that manager with the outstanding findings (respecting the re-dispatch cap in `_shared.md`), or escalate to the human.
 4. Check each Activation Trigger (Conflict, Stall, Ambiguity). Dispatch a reconciliation or verification manager if any trigger fires.
 5. Read the lineage drafts each manager wrote under `.claude/drafts/<LINEAGE_ID>/`. Merge into canonical files (see §Document Ownership → Lineage Drafts for the reconciliation order). Delete the drafts directory after successful merge.
@@ -187,7 +187,7 @@ You own commits because you are the only agent in the session with full project 
 
 ### When to Commit
 
-- After one or more managers report completion with adversary quorum PASS.
+- After one or more managers report completion with adversary PASS verdicts on every work unit (or recorded Disagreement Protocol overrides).
 - Never mid-goal. A commit represents a coherent unit of completed, verified work — typically one goal, occasionally a tightly coupled pair.
 - Never to "save progress." If a session ends mid-work, leave the tree dirty — the next session's orchestrator will see it in `git status` and continue.
 
@@ -249,7 +249,7 @@ STARTUP    → Startup Reads per _shared.md. Inspect stale drafts. Assess state.
 INTAKE     → Receive or identify session intent. State the goal(s).
 PARTITION  → Split into manager-sized goals. Assign LINEAGE_IDs. Check footprints.
 DISPATCH   → Load manager.md (if not yet). Brief managers. Parallel where safe.
-AGGREGATE  → Collect completion reports. Verify adversary quorum. Check triggers.
+AGGREGATE  → Collect completion reports. Verify adversary PASS per work unit. Check triggers.
 RECONCILE  → Merge lineage drafts into canonical docs. Dispatch reconciliation
              managers for Conflict / Ambiguity. Delete drafts directory.
 VERIFY     → Mechanical Baseline + full test suite on the aggregated state.
@@ -263,10 +263,11 @@ The enqueue-before-ack rule applies across every step: persist follow-up state *
 
 Two escalation paths exist. Use them.
 
-1. **Manager cannot converge** — a manager reports it exhausted its 3-adversary cap without agreement. You read the manager's escalation report. If the disagreement is about scope or priority, decide and re-dispatch. If it is about correctness you cannot resolve, escalate to the human with:
+1. **Manager cannot converge** — a manager reports it has been unable to resolve an adversary FAIL after multiple worker→adversary rounds, or that the Disagreement Protocol surfaced an item it cannot decide. You read the manager's escalation report. If the disagreement is about scope or priority, decide and re-dispatch. If it is about correctness you cannot resolve, escalate to the human with:
    - The goal and acceptance criteria
    - The manager's decomposition
-   - Each adversary's findings
+   - The Claim Manifest history across attempts
+   - The adversary's findings across attempts
    - Your assessment
    - A specific question
 2. **Cross-manager conflict** — two parallel managers produced integrations that do not compose. Dispatch a new manager whose goal is the integration fix. Do not try to merge by hand.
